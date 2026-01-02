@@ -18,7 +18,7 @@ index.mjs:672 Uncaught TypeError: Cannot read properties of undefined (reading '
 
 ### 1. สร้าง SafeMegaMenu Component
 
-ไฟล์: `receipt_kbyt/src/components/SafeMegaMenu.vue`
+ไฟล์: `receiver_samai/src/components/SafeMegaMenu.vue`
 
 **Features ที่เพิ่ม:**
 - ✅ Error handling และ null checking
@@ -54,8 +54,8 @@ index.mjs:672 Uncaught TypeError: Cannot read properties of undefined (reading '
 
 ## ไฟล์ที่ได้รับการแก้ไข
 
-1. **`receipt_kbyt/src/components/SafeMegaMenu.vue`** - Component ใหม่ที่มี error handling
-2. **`receipt_kbyt/src/views/uikit/MenuDoc.vue`** - อัพเดทใช้ SafeMegaMenu แทน MegaMenu
+1. **`receiver_samai/src/components/SafeMegaMenu.vue`** - Component ใหม่ที่มี error handling
+2. **`receiver_samai/src/views/uikit/MenuDoc.vue`** - อัพเดทใช้ SafeMegaMenu แทน MegaMenu
 
 ## วิธีการทดสอบ
 

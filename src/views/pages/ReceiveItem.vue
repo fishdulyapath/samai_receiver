@@ -1,6 +1,6 @@
 <script setup>
 import ReceiveDocService from '@/service/ReceiveDocService';
-import PrintReceiptDialog from '@/components/PrintReceiptDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiverDialog.vue';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -556,14 +556,14 @@ async function saveReceiveDoc() {
             if (totalScannedQty.value === totalSOQty.value) {
                 // โหลดข้อมูล document อีกครั้งเพื่อเตรียมพิมพ์
                 await loadDocumentDataForPrint();
-                
+
                 // เปิด Print Dialog
                 showPrintDialog.value = true;
             } else {
                 // ถ้าจำนวนไม่เท่ากัน ให้กลับไปหน้ารายการทันที
                 router.push({ name: 'receivedoc' });
             }
-            
+
             showSummaryDialog.value = false;
         } else {
             loading.value = false;
@@ -590,7 +590,7 @@ async function loadDocumentDataForPrint() {
     try {
         // ดึงข้อมูลจาก API getReceiveDocList เพื่อหาข้อมูลเอกสาร
         const result = await ReceiveDocService.getReceiveDocList(docno.value, '', '', 1, 1);
-        
+
         if (result.success && result.data && result.data.length > 0) {
             documentData.value = result.data[0];
         } else {
@@ -987,13 +987,8 @@ onUnmounted(() => {
             </template>
         </Dialog>
 
-        <!-- Print Receipt Dialog -->
-        <PrintReceiptDialog 
-            :visible="showPrintDialog" 
-            @update:visible="handlePrintDialogClose"
-            :documentData="documentData"
-            :items="scannedItems"
-        />
+        <!-- Print Receiver Dialog -->
+        <PrintReceiverDialog :visible="showPrintDialog" @update:visible="handlePrintDialogClose" :documentData="documentData" :items="scannedItems" />
     </div>
 </template>
 

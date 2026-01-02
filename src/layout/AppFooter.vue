@@ -2,7 +2,7 @@
 
 <template>
     <div class="layout-footer">
-        KBYT RECEIPT © {{ new Date().getFullYear() }} - Powered by
+        Samai Receiver © {{ new Date().getFullYear() }} - Powered by
         <a href="https://primevue.org" target="_blank" rel="noopener noreferrer" class="text-primary font-bold hover:underline">PrimeVue</a>
     </div>
 </template>

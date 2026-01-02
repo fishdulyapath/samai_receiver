@@ -2,7 +2,7 @@
 import ReceiveDocService from '@/service/ReceiveDocService';
 import ReceiveDocTable from '@/components/ReceiveDocTable.vue';
 import ReceiveDetailDialog from '@/components/ReceiveDetailDialog.vue';
-import PrintReceiptDialog from '@/components/PrintReceiptDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiverDialog.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
@@ -369,12 +369,12 @@ async function handlePrint(doc) {
     try {
         // โหลดข้อมูล document และ items
         const result = await ReceiveDocService.getReceiveDocDetail(doc.doc_no);
-        
+
         if (result.success) {
             // คำนวณยอดรวมของ SO และ Receive
             const totalSOQty = (result.details_so || []).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
             const totalReceiveQty = (result.details_receive || []).reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
-            
+
             // เช็คว่าจำนวนที่รับเท่ากับ SO หรือไม่
             if (totalReceiveQty !== totalSOQty) {
                 toast.add({
@@ -385,12 +385,12 @@ async function handlePrint(doc) {
                 });
                 return;
             }
-            
+
             // เตรียมข้อมูล document
             printDocumentData.value = doc;
-            
-            // แปลง receive details เป็นรูปแบบที่ PrintReceiptDialog ต้องการ
-            printItems.value = (result.details_receive || []).map(item => ({
+
+            // แปลง receive details เป็นรูปแบบที่ PrintReceiverDialog ต้องการ
+            printItems.value = (result.details_receive || []).map((item) => ({
                 item_code: item.item_code,
                 item_name: item.item_name || '',
                 unit_code: item.unit_code,
@@ -398,7 +398,7 @@ async function handlePrint(doc) {
                 item_year: item.item_year || '',
                 qty: parseInt(item.qty) || 0
             }));
-            
+
             // เปิด Print Dialog
             showPrintDialog.value = true;
         } else {
@@ -672,12 +672,8 @@ function closeDetailDialog() {
         <!-- Dialog รายละเอียดการรับ -->
         <ReceiveDetailDialog v-model:visible="detailDialog" :loading="detailLoading" :document="selectedDoc" :soDetails="soDetails" :receiveDetails="receiveDetails" @close="closeDetailDialog" />
 
-        <!-- Print Receipt Dialog -->
-        <PrintReceiptDialog 
-            v-model:visible="showPrintDialog" 
-            :documentData="printDocumentData"
-            :items="printItems"
-        />
+        <!-- Print Receiver Dialog -->
+        <PrintReceiverDialog v-model:visible="showPrintDialog" :documentData="printDocumentData" :items="printItems" />
     </div>
 </template>
 

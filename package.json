@@ -1,5 +1,5 @@
 {
-    "name": "kbyt-receipt",
+    "name": "samai-receiver",
     "version": "1.0.0",
     "scripts": {
         "dev": "vite",

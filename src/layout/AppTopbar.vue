@@ -51,7 +51,7 @@ const handleLogout = () => {
                     </g>
                 </svg>
 
-                <span>KBYT<span class="hidden lg:inline"> RECEIPT</span></span>
+                <span>Samai<span class="hidden lg:inline"> Receiver</span></span>
             </router-link>
         </div>
 

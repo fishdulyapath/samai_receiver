@@ -178,10 +178,10 @@ const router = createRouter({
 // Router Guard - ตรวจสอบ authentication และ authorization
 router.beforeEach((to, from, next) => {
     const isAuthenticated = AuthService.isAuthenticated();
-    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-    const requiresReceivePermission = to.matched.some(record => record.meta.requiresReceivePermission);
-    const requiresHistoryPermission = to.matched.some(record => record.meta.requiresHistoryPermission);
-    const requiresAdminPermission = to.matched.some(record => record.meta.requiresAdminPermission);
+    const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+    const requiresReceivePermission = to.matched.some((record) => record.meta.requiresReceivePermission);
+    const requiresHistoryPermission = to.matched.some((record) => record.meta.requiresHistoryPermission);
+    const requiresAdminPermission = to.matched.some((record) => record.meta.requiresAdminPermission);
 
     // ตรวจสอบ authentication
     if (requiresAuth && !isAuthenticated) {

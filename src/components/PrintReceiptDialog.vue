@@ -51,7 +51,7 @@ const handlePrint = () => {
     WinPrint.focus();
     WinPrint.print();
     WinPrint.close();
-    
+
     // ปิด Dialog หลังจากพิมพ์
     closeDialog();
 };
@@ -84,10 +84,10 @@ const formatTime = (timeStr) => {
 </script>
 
 <template>
-    <Dialog :visible="visible" @update:visible="closeDialog" modal header="พิมพ์ใบขึ้นยาง" :style="{ width: '450px' }" :dismissableMask="true">
+    <Dialog :visible="visible" @update:visible="closeDialog" modal header="พิมพ์ใบรับ" :style="{ width: '450px' }" :dismissableMask="true">
         <div class="print-confirm-content">
             <div class="flex flex-col items-center gap-3 py-4">
-                <h3 class="text-xl font-semibold">พร้อมพิมพ์ใบขึ้นยางหรือไม่?</h3>
+                <h3 class="text-xl font-semibold">พร้อมพิมพ์ใบรับหรือไม่?</h3>
                 <div class="text-center text-muted-color">
                     <p class="mb-2">
                         เลขที่: <span class="font-semibold text-primary">{{ documentData.doc_no || '-' }}</span>
@@ -105,12 +105,12 @@ const formatTime = (timeStr) => {
             <!-- เนื้อหาที่จะพิมพ์ (ซ่อนใน dialog) -->
             <div id="print" class="print-area no-print" style="display: none">
                 <div class="slip-header">
-                    <h1 class="slip-title">ใบจัดสินค้า</h1>
+                    <h1 class="slip-title">ใบรับสินค้า</h1>
                     <div class="slip-divider"></div>
                     <div class="slip-info">
                         <div class="info-line">วันที่: {{ formatDate(documentData.doc_date || documentData.close_date) }} {{ formatTime(documentData.doc_time || documentData.close_time) }}</div>
                         <div class="info-line">เลขที่บิล: {{ documentData.doc_no || '-' }}</div>
-                        <div class="info-line">เลขที่ SO: {{ documentData.doc_ref || '-' }}</div>
+                        <div class="info-line">เลขที่ PO: {{ documentData.doc_ref || '-' }}</div>
                         <div class="info-line">ลูกค้า: {{ documentData.cust_name || '-' }}</div>
                         <div class="info-line">พนักงาน: {{ documentData.user_close_name || documentData.sale_name || '-' }}</div>
                     </div>
@@ -124,7 +124,7 @@ const formatTime = (timeStr) => {
                             <span class="item-desc">{{ item.item_code }} {{ item.item_name ? '- ' + item.item_name : '' }}</span>
                         </div>
                         <div class="item-detail">
-                            <span class="detail-left">ปี {{ item.item_year || '-' }} | {{ item.unit_code || 'เส้น' }}</span>
+                            <span class="detail-left">{{ item.unit_code || 'เส้น' }}</span>
                             <span class="detail-right">x{{ item.qty || 0 }}</span>
                         </div>
                     </div>
@@ -138,14 +138,14 @@ const formatTime = (timeStr) => {
                         <span class="total-amount">{{ totalQty }} ชิ้น</span>
                     </div>
                     <div class="slip-divider"></div>
-                    
+
                     <div class="slip-signatures">
                         <div class="sig-item">
                             <div class="sig-label">ผู้จัดสินค้า</div>
                             <div class="sig-line"></div>
                             <div class="sig-date">วันที่ ___/___/______</div>
                         </div>
-                        
+
                         <div class="sig-item">
                             <div class="sig-label">ผู้อนุมัติ</div>
                             <div class="sig-line"></div>

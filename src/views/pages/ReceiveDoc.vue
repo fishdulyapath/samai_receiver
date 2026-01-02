@@ -2,7 +2,7 @@
 import ReceiveDocService from '@/service/ReceiveDocService';
 import ReceiveDocTable from '@/components/ReceiveDocTable.vue';
 import ReceiveDetailDialog from '@/components/ReceiveDetailDialog.vue';
-import PrintReceiverDialog from '@/components/PrintReceiverDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
@@ -131,7 +131,7 @@ async function loadSOList() {
             toast.add({
                 severity: 'error',
                 summary: 'Error',
-                detail: result.message || 'Failed to load SO documents',
+                detail: result.message || 'Failed to load PO documents',
                 life: 3000
             });
         }
@@ -139,7 +139,7 @@ async function loadSOList() {
         toast.add({
             severity: 'error',
             summary: 'Error',
-            detail: 'An error occurred while loading SO documents',
+            detail: 'An error occurred while loading PO documents',
             life: 3000
         });
     } finally {
@@ -168,7 +168,7 @@ async function createReceiveDoc() {
         toast.add({
             severity: 'warn',
             summary: 'Warning',
-            detail: 'กรุณาเลือก SO ก่อน',
+            detail: 'กรุณาเลือก PO ก่อน',
             life: 3000
         });
         return;
@@ -380,7 +380,7 @@ async function handlePrint(doc) {
                 toast.add({
                     severity: 'warn',
                     summary: 'ไม่สามารถพิมพ์ได้',
-                    detail: 'จำนวนที่รับต้องเท่ากับจำนวน SO เท่านั้น',
+                    detail: 'จำนวนที่รับต้องเท่ากับจำนวน PO เท่านั้น',
                     life: 3000
                 });
                 return;
@@ -499,18 +499,18 @@ function closeDetailDialog() {
             <div class="mb-4">
                 <Stepper :value="currentStep" linear>
                     <StepList>
-                        <Step value="1">เลือก SO</Step>
+                        <Step value="1">เลือก PO</Step>
                         <Step value="2">กรอกรายละเอียด</Step>
                     </StepList>
                 </Stepper>
             </div>
 
             <div v-if="currentStep === '1'" class="step-content">
-                <!-- Step 1: เลือก SO -->
+                <!-- Step 1: เลือก PO -->
                 <div class="mb-4">
                     <!-- Mobile Search -->
                     <div class="md:hidden space-y-2 mb-3">
-                        <InputText v-model="soSearchQuery" placeholder="ค้นหา SO..." fluid @keyup.enter="handleSOSearch" />
+                        <InputText v-model="soSearchQuery" placeholder="ค้นหา PO..." fluid @keyup.enter="handleSOSearch" />
                         <div class="grid grid-cols-2 gap-2">
                             <DatePicker :showIcon="true" v-model="soFromDate" dateFormat="dd-mm-yy" placeholder="จากวันที่" fluid />
                             <DatePicker :showIcon="true" v-model="soToDate" dateFormat="dd-mm-yy" placeholder="ถึงวันที่" fluid />
@@ -520,7 +520,7 @@ function closeDetailDialog() {
 
                     <!-- Desktop Search -->
                     <div class="hidden md:flex flex-wrap items-center gap-2 mb-4">
-                        <InputText v-model="soSearchQuery" placeholder="ค้นหา SO..." style="width: 15rem" @keyup.enter="handleSOSearch" />
+                        <InputText v-model="soSearchQuery" placeholder="ค้นหา PO..." style="width: 15rem" @keyup.enter="handleSOSearch" />
                         <DatePicker :showIcon="true" v-model="soFromDate" dateFormat="dd-mm-yy" placeholder="จากวันที่" style="width: 12rem" />
                         <DatePicker :showIcon="true" v-model="soToDate" dateFormat="dd-mm-yy" placeholder="ถึงวันที่" style="width: 12rem" />
                         <Button label="ค้นหา" icon="pi pi-search" @click="handleSOSearch" :loading="soLoading" />
@@ -535,7 +535,7 @@ function closeDetailDialog() {
                     </div>
                     <div v-else-if="soList.length === 0" class="text-center py-8 text-muted-color">
                         <i class="pi pi-inbox text-4xl mb-2"></i>
-                        <p>ไม่พบข้อมูล SO</p>
+                        <p>ไม่พบข้อมูล PO</p>
                     </div>
                     <div v-else>
                         <div
@@ -547,13 +547,18 @@ function closeDetailDialog() {
                             <div class="flex items-start justify-between mb-2">
                                 <div class="flex-1">
                                     <div class="font-bold text-primary mb-1">{{ so.doc_no }}</div>
-                                    <div class="text-sm text-muted-color">{{ formatDate(so.doc_date) }}</div>
+                                    <div class="text-sm text-muted-color">
+                                        {{ formatDate(so.doc_date) }}
+                                    </div>
                                 </div>
                                 <i class="pi pi-chevron-right text-muted-color"></i>
                             </div>
                             <div class="text-sm space-y-1">
                                 <div><span class="text-muted-color">ลูกค้า:</span> {{ so.cust_name }}</div>
-                                <div><span class="text-muted-color">พนักงานขาย:</span> {{ so.sale_name || '-' }}</div>
+                                <div>
+                                    <span class="text-muted-color">พนักงานขาย:</span>
+                                    {{ so.sale_name || '-' }}
+                                </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-muted-color">สาขา:</span>
                                     <Tag :value="so.branch_code" severity="secondary" size="small" />
@@ -587,10 +592,10 @@ function closeDetailDialog() {
                         scrollable
                         scrollHeight="400px"
                     >
-                        <template #empty> ไม่พบข้อมูล SO </template>
+                        <template #empty> ไม่พบข้อมูล PO </template>
                         <template #loading> กำลังโหลดข้อมูล... </template>
 
-                        <Column field="doc_no" header="เลขที่ SO" :sortable="true" style="min-width: 12rem">
+                        <Column field="doc_no" header="เลขที่ PO" :sortable="true" style="min-width: 12rem">
                             <template #body="{ data }">
                                 <span class="font-semibold text-primary">{{ data.doc_no }}</span>
                             </template>
@@ -624,7 +629,7 @@ function closeDetailDialog() {
                 <div class="flex flex-col gap-4">
                     <div class="bg-primary-50 dark:bg-primary-400/10 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h6 class="font-semibold mb-0">SO ที่เลือก</h6>
+                            <h6 class="font-semibold mb-0">PO ที่เลือก</h6>
                             <Tag :value="selectedSO.doc_no" severity="info" />
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -645,7 +650,7 @@ function closeDetailDialog() {
                                 <Tag :value="selectedSO.branch_code" severity="secondary" size="small" />
                             </div>
                             <div v-if="selectedSO.remark" class="md:col-span-2">
-                                <label class="text-xs text-muted-color block mb-1">หมายเหตุ SO</label>
+                                <label class="text-xs text-muted-color block mb-1">หมายเหตุ PO</label>
                                 <p class="text-sm">{{ selectedSO.remark }}</p>
                             </div>
                         </div>

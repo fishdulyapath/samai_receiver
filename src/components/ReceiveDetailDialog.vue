@@ -40,18 +40,18 @@ function handleClose() {
     emit('close');
 }
 
-// รวมข้อมูล SO และรายการที่รับแล้ว
+// รวมข้อมูล PO และรายการที่รับแล้ว
 const combinedDetails = computed(() => {
     const combined = {};
 
-    // เพิ่มข้อมูลจาก SO
+    // เพิ่มข้อมูลจาก PO
     props.soDetails.forEach((item) => {
         if (!combined[item.item_code]) {
             combined[item.item_code] = {
                 item_code: item.item_code,
                 item_name: item.item_name,
                 unit_code: item.unit_code,
-                item_year: item.item_year || '', // เพิ่ม item_year จาก SO
+                item_year: item.item_year || '', // เพิ่ม item_year จาก PO
                 so_qty: parseInt(item.qty) || 0,
                 received_qty: 0,
                 details: [] // เก็บรายละเอียดแต่ละ barcode/ปี
@@ -103,7 +103,7 @@ const combinedDetails = computed(() => {
                         <p class="font-semibold">{{ formatDate(document?.doc_date) }}</p>
                     </div>
                     <div>
-                        <label class="text-sm text-muted-color">อ้างอิง SO</label>
+                        <label class="text-sm text-muted-color">อ้างอิง Po</label>
                         <p class="font-semibold">{{ document?.doc_ref || '-' }}</p>
                     </div>
                     <div>
@@ -152,7 +152,7 @@ const combinedDetails = computed(() => {
                                 <!-- Quantity Summary (แนวนอน กระชับ) -->
                                 <div class="flex items-center gap-3">
                                     <div class="text-center">
-                                        <div class="text-sm text-blue-600 dark:text-blue-400">SO</div>
+                                        <div class="text-sm text-blue-600 dark:text-blue-400">PO</div>
                                         <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ item.so_qty }}</div>
                                     </div>
                                     <i class="pi pi-arrow-right text-muted-color text-lg"></i>
@@ -205,7 +205,7 @@ const combinedDetails = computed(() => {
 
                             <div class="grid grid-cols-3 gap-3 mb-3 pb-3 border-b border-surface-200 dark:border-surface-700">
                                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded p-3 text-center">
-                                    <div class="text-sm text-blue-600 dark:text-blue-400 mb-1">จำนวน SO</div>
+                                    <div class="text-sm text-blue-600 dark:text-blue-400 mb-1">จำนวน PO</div>
                                     <div class="text-xl font-bold text-blue-600 dark:text-blue-400">{{ item.so_qty }}</div>
                                 </div>
                                 <div :class="['rounded p-3 text-center', item.received_qty >= item.so_qty ? 'bg-green-50 dark:bg-green-900/20' : 'bg-orange-50 dark:bg-orange-900/20']">

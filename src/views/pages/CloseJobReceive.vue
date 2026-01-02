@@ -2,7 +2,7 @@
 import ReceiveDocService from '@/service/ReceiveDocService';
 import ReceiveDocTable from '@/components/ReceiveDocTable.vue';
 import ReceiveDetailDialog from '@/components/ReceiveDetailDialog.vue';
-import PrintReceiverDialog from '@/components/PrintReceiverDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
 import ImageGalleryDialog from '@/components/ImageGalleryDialog.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
@@ -195,7 +195,7 @@ async function handlePrint(doc) {
                 toast.add({
                     severity: 'warn',
                     summary: 'ไม่สามารถพิมพ์ได้',
-                    detail: 'จำนวนที่รับต้องเท่ากับจำนวน SO เท่านั้น',
+                    detail: 'จำนวนที่รับต้องเท่ากับจำนวน PO เท่านั้น',
                     life: 3000
                 });
                 return;

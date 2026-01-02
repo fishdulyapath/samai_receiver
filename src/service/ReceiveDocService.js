@@ -91,10 +91,10 @@ class ReceiveDocService {
 
             return response.data;
         } catch (error) {
-            console.error('Error fetching SO doc list:', error);
+            console.error('Error fetching PO doc list:', error);
             return {
                 success: false,
-                message: error.response?.data?.message || 'Failed to fetch SO documents',
+                message: error.response?.data?.message || 'Failed to fetch PO documents',
                 data: [],
                 total: 0,
                 page: 1,
@@ -249,6 +249,30 @@ class ReceiveDocService {
             const dbname = AuthService.getDatabaseName();
 
             const response = await axios.get(`${API_URL}/getItemSearch`, {
+                params: {
+                    provider,
+                    dbname,
+                    search
+                }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Error searching item:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to search item',
+                data: []
+            };
+        }
+    }
+
+    async getBarcodeSearch(search) {
+        try {
+            const provider = AuthService.getProviderName();
+            const dbname = AuthService.getDatabaseName();
+
+            const response = await axios.get(`${API_URL}/getBarcodeSearch`, {
                 params: {
                     provider,
                     dbname,

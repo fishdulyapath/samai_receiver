@@ -1,6 +1,6 @@
 <script setup>
 import ReceiveDocService from '@/service/ReceiveDocService';
-import PrintReceiverDialog from '@/components/PrintReceiverDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -80,15 +80,21 @@ async function loadReceiveDocDetail() {
 
             // ถ้ามีสินค้าที่รับแล้ว ให้โหลดมาแสดงใน scannedItems
             if (receivedDetails.value.length > 0) {
-                scannedItems.value = receivedDetails.value.map((item) => ({
-                    item_code: item.item_code,
-                    item_name: item.item_name || '',
-                    unit_code: item.unit_code,
-                    barcode: item.barcode || item.item_code,
-                    item_year: item.item_year || '',
-                    qty: parseInt(item.qty) || 1,
-                    max_qty: getMaxQty(item.item_code)
-                }));
+                scannedItems.value = receivedDetails.value.map((item) => {
+                    let barcode = item.barcode || item.item_code;
+                    // ตัดส่วนหลัง - ออก
+                    if (barcode.includes('-')) {
+                        barcode = barcode.split('-')[0];
+                    }
+                    return {
+                        item_code: item.item_code,
+                        item_name: item.item_name || '',
+                        unit_code: item.unit_code,
+                        barcode: barcode,
+                        qty: parseInt(item.qty) || 1,
+                        max_qty: getMaxQty(item.item_code)
+                    };
+                });
             }
         } else {
             toast.add({
@@ -140,16 +146,13 @@ function refocusBarcodeInput() {
     }
 }
 
-// แยก Barcode Input รูปแบบ 10*04-101-0000539#2024
+// แยก Barcode Input รูปแบบ: 8801221242-03 หรือ qty*8801221242-03
 function parseBarcodeInput(input) {
     const trimmedInput = input.trim();
-
-    // กำหนดค่า default
     let qty = 1;
     let barcode = '';
-    let item_year = '';
 
-    // แยก quantity ถ้ามี * (เช่น 10*)
+    // แยก quantity ถ้ามี * (เช่น 10*8801221242-03)
     let remaining = trimmedInput;
     if (remaining.includes('*')) {
         const parts = remaining.split('*');
@@ -160,16 +163,14 @@ function parseBarcodeInput(input) {
         remaining = parts.slice(1).join('*'); // เอาส่วนหลัง * มาต่อกัน
     }
 
-    // แยก year ถ้ามี # (เช่น #2024)
-    if (remaining.includes('#')) {
-        const parts = remaining.split('#');
-        barcode = parts[0];
-        item_year = parts[1] || '';
+    // ตัดส่วนหลัง - ออก (ถ้ามี)
+    if (remaining.includes('-')) {
+        barcode = remaining.split('-')[0];
     } else {
         barcode = remaining;
     }
 
-    return { qty, barcode, item_year };
+    return { qty, barcode };
 }
 
 // ประมวลผล Barcode Input
@@ -178,7 +179,7 @@ async function processBarcodeInput() {
         return;
     }
 
-    const { qty, barcode, item_year } = parseBarcodeInput(barcodeInput.value);
+    const { qty, barcode } = parseBarcodeInput(barcodeInput.value);
 
     if (!barcode) {
         toast.add({
@@ -194,19 +195,19 @@ async function processBarcodeInput() {
     // ค้นหาสินค้าจาก barcode
     searchLoading.value = true;
     try {
-        const result = await ReceiveDocService.getItemSearch(barcode);
+        const result = await ReceiveDocService.getBarcodeSearch(barcode);
 
         if (result.success && result.data && result.data.length > 0) {
             const item = result.data[0];
 
             // ตรวจสอบว่าสินค้าอยู่ใน SO หรือไม่
-            const soItem = soDetails.value.find((so) => so.item_code === item.item_code);
+            const soItem = soDetails.value.find((so) => so.item_code === item.item_code && so.unit_code === item.unit_code);
 
             if (!soItem) {
                 toast.add({
                     severity: 'error',
                     summary: 'Error',
-                    detail: `สินค้า ${item.item_code} ไม่อยู่ใน SO นี้`,
+                    detail: `สินค้า ${item.item_code} ไม่อยู่ใน PO นี้`,
                     life: 3000
                 });
                 barcodeInput.value = '';
@@ -243,16 +244,13 @@ async function processBarcodeInput() {
                 });
             }
 
-            // ใช้ barcode และ item_year ที่ parse จาก input ที่สแกนเข้ามา
-            // ไม่ใช้จาก API เพราะ API อาจส่ง barcode เดิมกลับมาเสมอ
             // เพิ่มสินค้าตามจำนวนที่สแกน (หรือจำนวนที่เหลือ)
             let addedCount = 0;
             for (let i = 0; i < actualQty; i++) {
                 const success = addItemToScanned(
                     {
                         ...item,
-                        barcode: barcode, // ใช้ barcode จาก input ที่ parse แล้ว
-                        item_year: item_year, // ใช้ item_year จาก input ที่ parse แล้ว
+                        barcode: barcode,
                         qty: 1
                     },
                     false
@@ -343,14 +341,14 @@ function onItemSelect(event) {
 // เพิ่มสินค้าที่เลือกเข้า scannedItems
 function addItemToScanned(item, showToast = true) {
     // ตรวจสอบว่าสินค้านี้อยู่ใน SO หรือไม่
-    const soItem = soDetails.value.find((so) => so.item_code === item.item_code);
+    const soItem = soDetails.value.find((so) => so.item_code === item.item_code && so.unit_code === item.unit_code);
 
     if (!soItem) {
         if (showToast) {
             toast.add({
                 severity: 'error',
                 summary: 'Error',
-                detail: `สินค้า ${item.item_code} ไม่อยู่ใน SO นี้`,
+                detail: `สินค้า ${item.item_code} ไม่อยู่ใน PO นี้`,
                 life: 3000
             });
         }
@@ -373,25 +371,21 @@ function addItemToScanned(item, showToast = true) {
         return false;
     }
 
-    // ใช้ barcode และ item_year ที่ส่งมา หรือแยกจาก barcode ถ้ายังไม่ได้แยก
+    // ใช้ barcode ที่ส่งมา (ตัดส่วนหลัง - ออกแล้ว)
     let barcode = item.barcode || item.item_code;
-    let item_year = item.item_year || '';
 
-    // ถ้า barcode ยังมี # อยู่ (ยังไม่ได้แยก) ให้แยกออก
-    if (barcode.includes('#')) {
-        const parts = barcode.split('#');
-        barcode = parts[0];
-        item_year = parts[1] || '';
+    // ตัดส่วนหลัง - ออก (ถ้ายังมี)
+    if (barcode.includes('-')) {
+        barcode = barcode.split('-')[0];
     }
 
     console.log('=== addItemToScanned ===');
     console.log('Input item:', item);
     console.log('Parsed barcode:', barcode);
-    console.log('Parsed item_year:', item_year);
-    console.log('Current scannedItems:', JSON.stringify(scannedItems.value.map((i) => ({ item_code: i.item_code, barcode: i.barcode, item_year: i.item_year }))));
+    console.log('Current scannedItems:', JSON.stringify(scannedItems.value.map((i) => ({ item_code: i.item_code, barcode: i.barcode }))));
 
-    // ตรวจสอบว่ามีสินค้านี้อยู่แล้วหรือไม่ (เช็คทั้ง item_code และ item_year)
-    const existingItemIndex = scannedItems.value.findIndex((i) => i.item_code === item.item_code && i.item_year === item_year);
+    // ตรวจสอบว่ามีสินค้านี้อยู่แล้วหรือไม่ (เช็คแค่ item_code กับ barcode)
+    const existingItemIndex = scannedItems.value.findIndex((i) => i.item_code === item.item_code && i.barcode === barcode);
 
     console.log('Existing item index:', existingItemIndex);
 
@@ -432,7 +426,6 @@ function addItemToScanned(item, showToast = true) {
             item_name: item.item_name || '',
             unit_code: item.unit_code,
             barcode: barcode,
-            item_year: item_year,
             qty: item.qty || 1,
             max_qty: maxQty
         });
@@ -480,30 +473,24 @@ function showSummary() {
     showSummaryDialog.value = true;
 }
 
-// สรุปข้อมูลสินค้าที่จะบันทึก (รายละเอียดทุก barcode และปี)
+// สรุปข้อมูลสินค้าที่จะบันทึก (รายละเอียดทุก barcode)
 const summaryItems = computed(() => {
     const grouped = {};
 
     scannedItems.value.forEach((item) => {
         if (!grouped[item.item_code]) {
-            // หาข้อมูล item_year จาก SO
-            const soItem = soDetails.value.find((so) => so.item_code === item.item_code);
-            const soItemYear = soItem?.item_year || '';
-
             grouped[item.item_code] = {
                 item_code: item.item_code,
                 item_name: item.item_name,
                 unit_code: item.unit_code,
-                item_year_so: soItemYear, // ปียางจาก SO
                 total_qty: 0,
                 max_qty: item.max_qty,
-                details: [] // เก็บรายละเอียดแต่ละ barcode/ปี
+                details: [] // เก็บรายละเอียดแต่ละ barcode
             };
         }
         grouped[item.item_code].total_qty += item.qty;
         grouped[item.item_code].details.push({
             barcode: item.barcode,
-            item_year: item.item_year,
             qty: item.qty
         });
     });
@@ -535,7 +522,6 @@ async function saveReceiveDoc() {
         // เตรียมข้อมูลสำหรับ API
         const details = scannedItems.value.map((item) => ({
             barcode: item.barcode,
-            item_year: item.item_year || '',
             item_code: item.item_code,
             unit_code: item.unit_code,
             qty: item.qty.toString()
@@ -640,11 +626,13 @@ onUnmounted(() => {
                 <div class="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
                     <Button icon="pi pi-arrow-left" text rounded @click="cancelAndGoBack" size="small" class="md:size-default" />
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-base md:text-lg text-primary truncate">{{ docno }}</div>
+                        <div class="font-bold text-base md:text-lg text-primary truncate">
+                            {{ docno }}
+                        </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-1 md:gap-2">
-                    <Button icon="pi pi-list" text rounded @click="showSODetails = true" v-badge.danger="soDetails.length" v-tooltip.bottom="'ดูรายการ SO'" size="small" class="md:size-default" />
+                    <Button icon="pi pi-list" text rounded @click="showSODetails = true" v-badge.danger="soDetails.length" v-tooltip.bottom="'ดูรายการ PO'" size="small" class="md:size-default" />
                     <!-- Mobile: Icon only -->
                     <Button v-if="isMobile" label="บันทึก" icon="pi pi-check" severity="success" @click="showSummary" size="small" />
                     <!-- Desktop: With label -->
@@ -700,8 +688,12 @@ onUnmounted(() => {
                         <template #option="slotProps">
                             <div class="flex items-start gap-2 py-2">
                                 <div class="flex-1 min-w-0">
-                                    <div class="font-semibold text-sm text-primary mb-1">{{ slotProps.option.item_code }}</div>
-                                    <div class="text-xs text-muted-color mb-1 line-clamp-1">{{ slotProps.option.item_name || '-' }}</div>
+                                    <div class="font-semibold text-sm text-primary mb-1">
+                                        {{ slotProps.option.item_code }}
+                                    </div>
+                                    <div class="text-xs text-muted-color mb-1 line-clamp-1">
+                                        {{ slotProps.option.item_name || '-' }}
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <Tag :value="slotProps.option.unit_code" severity="secondary" class="text-xs" />
                                         <span v-if="slotProps.option.barcode" class="font-mono font-bold text-xs text-primary bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">{{ slotProps.option.barcode }}</span>
@@ -727,12 +719,15 @@ onUnmounted(() => {
                     <!-- Item Header -->
                     <div class="flex items-start p-3 pb-2">
                         <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-primary text-base md:text-lg truncate mb-1">{{ item.item_code }}</div>
-                            <div class="text-sm md:text-base text-muted-color truncate mb-1">{{ item.item_name || '-' }}</div>
+                            <div class="font-semibold text-primary text-base md:text-lg truncate mb-1">
+                                {{ item.item_code }}
+                            </div>
+                            <div class="text-sm md:text-base text-muted-color truncate mb-1">
+                                {{ item.item_name || '-' }}
+                            </div>
                             <div class="flex items-center gap-2">
                                 <i class="pi pi-qrcode text-sm md:text-base text-muted-color"></i>
                                 <span class="font-mono font-bold text-sm md:text-base text-primary bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">{{ item.barcode }}</span>
-                                <span v-if="item.item_year" class="text-sm md:text-base font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded">ปี {{ item.item_year }}</span>
                             </div>
                         </div>
                         <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="removeScannedItem(index)" class="ml-2 -mt-1" />
@@ -746,7 +741,9 @@ onUnmounted(() => {
                         <div class="flex items-center gap-2">
                             <Button icon="pi pi-minus" text rounded size="small" severity="secondary" @click="item.qty > 1 && updateQty(index, item.qty - 1)" :disabled="item.qty <= 1" />
                             <div class="bg-primary-50 dark:bg-primary-900/20 rounded px-3 py-1 min-w-[3.5rem] md:min-w-[4rem] text-center">
-                                <div class="text-xl md:text-2xl font-bold text-primary leading-none">{{ item.qty }}</div>
+                                <div class="text-xl md:text-2xl font-bold text-primary leading-none">
+                                    {{ item.qty }}
+                                </div>
                                 <div class="text-xs md:text-sm text-muted-color">/ {{ item.max_qty }}</div>
                             </div>
                             <Button icon="pi pi-plus" text rounded size="small" severity="success" @click="updateQty(index, item.qty + 1)" :disabled="item.qty >= item.max_qty" />
@@ -767,7 +764,7 @@ onUnmounted(() => {
         <!-- SO Details Dialog - Full Screen on Mobile, Compact on Desktop -->
         <Dialog
             v-model:visible="showSODetails"
-            header="รายการใน SO"
+            header="รายการใน PO"
             :style="isMobile ? { width: '100vw', height: '100vh', maxWidth: '100%' } : { width: '90vw', maxWidth: '1200px' }"
             :modal="true"
             :dismissableMask="true"
@@ -790,15 +787,19 @@ onUnmounted(() => {
             <div class="grid grid-cols-3 gap-2 lg:gap-4 mb-3 lg:mb-4">
                 <div class="bg-primary-100 dark:bg-primary-900/30 rounded-lg p-2 lg:p-4 text-center">
                     <div class="text-[10px] lg:text-sm text-primary-600 dark:text-primary-400 mb-1">รายการทั้งหมด</div>
-                    <div class="text-lg lg:text-3xl font-bold text-primary">{{ soDetails.length }}</div>
+                    <div class="text-lg lg:text-3xl font-bold text-primary">
+                        {{ soDetails.length }}
+                    </div>
                 </div>
                 <div class="bg-success-100 dark:bg-success-900/30 rounded-lg p-2 lg:p-4 text-center">
-                    <div class="text-[10px] lg:text-sm text-success-600 dark:text-success-400 mb-1">ยอดรวม SO</div>
+                    <div class="text-[10px] lg:text-sm text-success-600 dark:text-success-400 mb-1">ยอดรว PO</div>
                     <div class="text-lg lg:text-3xl font-bold text-success">{{ totalSOQty }}</div>
                 </div>
                 <div class="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2 lg:p-4 text-center">
                     <div class="text-[10px] lg:text-sm text-orange-600 dark:text-orange-400 mb-1">รับแล้ว</div>
-                    <div class="text-lg lg:text-3xl font-bold text-orange-600 dark:text-orange-400">{{ totalScannedQty }}</div>
+                    <div class="text-lg lg:text-3xl font-bold text-orange-600 dark:text-orange-400">
+                        {{ totalScannedQty }}
+                    </div>
                 </div>
             </div>
 
@@ -812,16 +813,19 @@ onUnmounted(() => {
                             <div class="flex items-center gap-3">
                                 <div class="font-bold text-base text-primary">{{ so.item_code }}</div>
                                 <Tag :value="so.unit_code" severity="secondary" class="text-xs" />
-                                <Tag v-if="so.item_year" :value="`ปี ${so.item_year}`" severity="warning" class="text-xs" />
                             </div>
-                            <div class="text-sm text-muted-color truncate mt-1">{{ so.item_name || '-' }}</div>
+                            <div class="text-sm text-muted-color truncate mt-1">
+                                {{ so.item_name || '-' }}
+                            </div>
                         </div>
 
                         <!-- Quantity Stats (Center) - Inline -->
                         <div class="flex items-center gap-4">
                             <div class="text-center">
-                                <div class="text-xs text-blue-600 dark:text-blue-400 mb-1">จำนวน SO</div>
-                                <div class="text-xl font-bold text-blue-600 dark:text-blue-400">{{ so.qty }}</div>
+                                <div class="text-xs text-blue-600 dark:text-blue-400 mb-1">จำนวน PO</div>
+                                <div class="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                    {{ so.qty }}
+                                </div>
                             </div>
                             <div class="text-muted-color">→</div>
                             <div class="text-center">
@@ -855,9 +859,10 @@ onUnmounted(() => {
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 mb-1">
                                     <div class="font-bold text-lg text-primary">{{ so.item_code }}</div>
-                                    <Tag v-if="so.item_year" :value="`ปี ${so.item_year}`" severity="warning" class="text-sm" />
                                 </div>
-                                <div class="text-sm text-muted-color truncate">{{ so.item_name || '-' }}</div>
+                                <div class="text-sm text-muted-color truncate">
+                                    {{ so.item_name || '-' }}
+                                </div>
                             </div>
                             <Tag :value="so.unit_code" severity="secondary" class="ml-2" />
                         </div>
@@ -865,8 +870,10 @@ onUnmounted(() => {
                         <!-- Quantity Stats -->
                         <div class="grid grid-cols-3 gap-2">
                             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 text-center">
-                                <div class="text-[10px] text-blue-600 dark:text-blue-400 mb-1">จำนวน SO</div>
-                                <div class="text-base font-bold text-blue-600 dark:text-blue-400">{{ so.qty }}</div>
+                                <div class="text-[10px] text-blue-600 dark:text-blue-400 mb-1">จำนวน PO</div>
+                                <div class="text-base font-bold text-blue-600 dark:text-blue-400">
+                                    {{ so.qty }}
+                                </div>
                             </div>
                             <div :class="['rounded-lg p-2 text-center', getScannedQty(so.item_code) >= parseInt(so.qty) ? 'bg-green-50 dark:bg-green-900/20' : 'bg-orange-50 dark:bg-orange-900/20']">
                                 <div class="text-[10px] mb-1" :class="getScannedQty(so.item_code) >= parseInt(so.qty) ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'">รับแล้ว</div>
@@ -918,11 +925,14 @@ onUnmounted(() => {
                                 <!-- Item Info (Left) -->
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-3 mb-1">
-                                        <div class="font-semibold text-lg text-primary">{{ item.item_code }}</div>
+                                        <div class="font-semibold text-lg text-primary">
+                                            {{ item.item_code }}
+                                        </div>
                                         <Tag :value="item.unit_code" severity="secondary" class="text-sm" />
-                                        <Tag v-if="item.item_year_so" :value="`ปี ${item.item_year_so}`" severity="warning" class="text-sm" />
                                     </div>
-                                    <div class="text-base text-muted-color truncate">{{ item.item_name }}</div>
+                                    <div class="text-base text-muted-color truncate">
+                                        {{ item.item_name }}
+                                    </div>
                                 </div>
 
                                 <!-- Quantity Summary (Right) -->
@@ -940,7 +950,6 @@ onUnmounted(() => {
                                     <div v-for="(detail, dIdx) in item.details" :key="dIdx" class="flex items-center gap-2 bg-surface-0 dark:bg-surface-900 rounded px-3 py-2 border border-surface-200 dark:border-surface-600">
                                         <i class="pi pi-qrcode text-sm text-primary"></i>
                                         <span class="font-mono font-semibold text-sm text-primary">{{ detail.barcode }}</span>
-                                        <span v-if="detail.item_year" class="text-sm font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">ปี {{ detail.item_year }}</span>
                                         <Tag :value="`x${detail.qty}`" severity="info" class="text-sm" />
                                     </div>
                                 </div>
@@ -952,12 +961,15 @@ onUnmounted(() => {
                             <!-- Item Header -->
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
-                                    <div class="font-semibold text-base text-primary">{{ item.item_code }}</div>
-                                    <Tag v-if="item.item_year_so" :value="`ปี ${item.item_year_so}`" severity="warning" class="text-sm" />
+                                    <div class="font-semibold text-base text-primary">
+                                        {{ item.item_code }}
+                                    </div>
                                 </div>
                                 <Tag :value="item.unit_code" severity="secondary" class="text-sm" />
                             </div>
-                            <div class="text-sm text-muted-color mb-2 truncate">{{ item.item_name }}</div>
+                            <div class="text-sm text-muted-color mb-2 truncate">
+                                {{ item.item_name }}
+                            </div>
 
                             <!-- Total Quantity -->
                             <div class="flex items-center justify-between mb-2 pb-2 border-b border-surface-200 dark:border-surface-700">
@@ -971,7 +983,6 @@ onUnmounted(() => {
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
                                         <i class="pi pi-qrcode text-sm text-primary"></i>
                                         <span class="font-mono font-semibold text-sm text-primary truncate">{{ detail.barcode }}</span>
-                                        <span v-if="detail.item_year" class="text-sm font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">ปี {{ detail.item_year }}</span>
                                     </div>
                                     <Tag :value="`x${detail.qty}`" severity="info" class="text-sm ml-2" />
                                 </div>

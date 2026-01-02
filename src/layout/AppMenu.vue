@@ -34,7 +34,7 @@ const model = computed(() => {
         if (permissions.value.receive_screen === '1') {
             mainMenuItems.push(
                 {
-                    label: 'รับสินค้าจาก SO',
+                    label: 'รับสินค้าจาก PO',
                     icon: 'pi pi-fw pi-file-check',
                     to: '/pages/receivedoc'
                 },

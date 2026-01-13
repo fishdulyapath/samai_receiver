@@ -93,7 +93,7 @@ const formatTime = (timeStr) => {
                         เลขที่: <span class="font-semibold text-primary">{{ documentData.doc_no || '-' }}</span>
                     </p>
                     <p class="mb-2">
-                        ลูกค้า: <span class="font-semibold">{{ documentData.cust_name || '-' }}</span>
+                        เจ้าหนี้: <span class="font-semibold">{{ documentData.cust_name || '-' }}</span>
                     </p>
                     <p>
                         จำนวนสินค้า: <span class="font-semibold text-primary">{{ totalQty }} ชิ้น</span>
@@ -111,7 +111,7 @@ const formatTime = (timeStr) => {
                         <div class="info-line">วันที่: {{ formatDate(documentData.doc_date || documentData.close_date) }} {{ formatTime(documentData.doc_time || documentData.close_time) }}</div>
                         <div class="info-line">เลขที่บิล: {{ documentData.doc_no || '-' }}</div>
                         <div class="info-line">เลขที่ PO: {{ documentData.doc_ref || '-' }}</div>
-                        <div class="info-line">ลูกค้า: {{ documentData.cust_name || '-' }}</div>
+                        <div class="info-line">เจ้าหนี้: {{ documentData.cust_name || '-' }}</div>
                         <div class="info-line">พนักงาน: {{ documentData.user_close_name || documentData.sale_name || '-' }}</div>
                     </div>
                     <div class="slip-divider"></div>

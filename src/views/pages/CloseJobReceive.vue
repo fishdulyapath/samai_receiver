@@ -1,9 +1,9 @@
 <script setup>
-import ReceiveDocService from '@/service/ReceiveDocService';
-import ReceiveDocTable from '@/components/ReceiveDocTable.vue';
-import ReceiveDetailDialog from '@/components/ReceiveDetailDialog.vue';
-import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
 import ImageGalleryDialog from '@/components/ImageGalleryDialog.vue';
+import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
+import ReceiveDetailDialog from '@/components/ReceiveDetailDialog.vue';
+import ReceiveDocTable from '@/components/ReceiveDocTable.vue';
+import ReceiveDocService from '@/service/ReceiveDocService';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
@@ -258,7 +258,7 @@ function handleImagesUpdated() {
                 <div class="flex flex-col gap-3">
                     <IconField>
                         <InputIcon class="pi pi-search" />
-                        <InputText v-model="searchQuery" placeholder="ค้นหาเลขที่เอกสาร, ลูกค้า..." fluid @keyup.enter="handleSearch" />
+                        <InputText v-model="searchQuery" placeholder="ค้นหาเลขที่เอกสาร, เจ้าหนี้..." fluid @keyup.enter="handleSearch" />
                     </IconField>
                     <div class="grid grid-cols-2 gap-2">
                         <DatePicker v-model="fromDate" dateFormat="dd-mm-yy" placeholder="จากวันที่" :showIcon="true" fluid />
@@ -278,7 +278,7 @@ function handleImagesUpdated() {
                         <div class="flex flex-wrap items-center gap-2">
                             <IconField>
                                 <InputIcon class="pi pi-search" />
-                                <InputText v-model="searchQuery" placeholder="ค้นหาเลขที่เอกสาร, ลูกค้า..." style="width: 18rem" @keyup.enter="handleSearch" />
+                                <InputText v-model="searchQuery" placeholder="ค้นหาเลขที่เอกสาร, เจ้าหนี้..." style="width: 18rem" @keyup.enter="handleSearch" />
                             </IconField>
                             <DatePicker v-model="fromDate" dateFormat="dd-mm-yy" placeholder="จากวันที่" :showIcon="true" style="width: 11rem" />
                             <DatePicker v-model="toDate" dateFormat="dd-mm-yy" placeholder="ถึงวันที่" :showIcon="true" style="width: 11rem" />

@@ -107,7 +107,7 @@ const combinedDetails = computed(() => {
                         <p class="font-semibold">{{ document?.doc_ref || '-' }}</p>
                     </div>
                     <div>
-                        <label class="text-sm text-muted-color">ลูกค้า</label>
+                        <label class="text-sm text-muted-color">เจ้าหนี้</label>
                         <p class="font-semibold">{{ document?.cust_name }}</p>
                     </div>
                     <div>

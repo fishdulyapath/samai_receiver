@@ -1,8 +1,8 @@
 <script setup>
-import ReceiveDocService from '@/service/ReceiveDocService';
 import PrintReceiverDialog from '@/components/PrintReceiptDialog.vue';
+import ReceiveDocService from '@/service/ReceiveDocService';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, onUnmounted, nextTick } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -33,7 +33,7 @@ const inputModes = ref([
     { name: 'ค้นหาสินค้า', value: 'search', icon: 'pi pi-search' }
 ]);
 
-// Scanned Items List
+// Scanned Items List - เก็บตาม item_code จริงของ SO
 const scannedItems = ref([]);
 
 // Summary Dialog
@@ -81,18 +81,15 @@ async function loadReceiveDocDetail() {
             // ถ้ามีสินค้าที่รับแล้ว ให้โหลดมาแสดงใน scannedItems
             if (receivedDetails.value.length > 0) {
                 scannedItems.value = receivedDetails.value.map((item) => {
-                    let barcode = item.barcode || item.item_code;
-                    // ตัดส่วนหลัง - ออก
-                    if (barcode.includes('-')) {
-                        barcode = barcode.split('-')[0];
-                    }
+                    // หา SO item ที่ตรงกัน
+                    const soItem = soDetails.value.find((so) => so.item_code === item.item_code && so.unit_code === item.unit_code);
                     return {
                         item_code: item.item_code,
+                        item_ref_code: soItem?.item_ref_code || item.item_ref_code || item.item_code,
                         item_name: item.item_name || '',
                         unit_code: item.unit_code,
-                        barcode: barcode,
-                        qty: parseInt(item.qty) || 1,
-                        max_qty: getMaxQty(item.item_code)
+                        qty: parseFloat(item.qty) || 0,
+                        max_qty: getMaxQtyByItemCode(item.item_code)
                     };
                 });
             }
@@ -116,20 +113,34 @@ async function loadReceiveDocDetail() {
     }
 }
 
-// หาจำนวนสูงสุดที่รับได้สำหรับสินค้าแต่ละตัว
-function getMaxQty(itemCode) {
+// หาจำนวนสูงสุดที่รับได้สำหรับสินค้าแต่ละตัว (ตาม item_code)
+function getMaxQtyByItemCode(itemCode) {
     const soItem = soDetails.value.find((item) => item.item_code === itemCode);
-    return soItem ? parseInt(soItem.qty) || 0 : 0;
+    return soItem ? parseFloat(soItem.qty) || 0 : 0;
 }
 
-// หาจำนวนที่รับไปแล้วจาก scannedItems
-function getScannedQty(itemCode) {
+// หาจำนวนสูงสุดรวมสำหรับ item_ref_code และ unit_code เดียวกัน
+function getTotalMaxQtyByRefCode(itemRefCode, unitCode) {
+    return soDetails.value.filter((item) => item.item_ref_code === itemRefCode && item.unit_code === unitCode).reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
+}
+
+// หาจำนวนที่รับไปแล้วจาก scannedItems (ตาม item_code)
+function getScannedQtyByItemCode(itemCode) {
     return scannedItems.value.filter((item) => item.item_code === itemCode).reduce((sum, item) => sum + item.qty, 0);
 }
 
-// คำนวณจำนวนคงเหลือที่ยังรับได้
+// คำนวณจำนวนคงเหลือที่ยังรับได้ (ตาม item_code)
+function getRemainingQtyByItemCode(itemCode) {
+    return getMaxQtyByItemCode(itemCode) - getScannedQtyByItemCode(itemCode);
+}
+
+// Backward compatible functions for template usage
+function getScannedQty(itemCode) {
+    return getScannedQtyByItemCode(itemCode);
+}
+
 function getRemainingQty(itemCode) {
-    return getMaxQty(itemCode) - getScannedQty(itemCode);
+    return getRemainingQtyByItemCode(itemCode);
 }
 
 // ฟังก์ชันสำหรับ re-focus barcode input หลัง scan
@@ -173,7 +184,21 @@ function parseBarcodeInput(input) {
     return { qty, barcode };
 }
 
-// ประมวลผล Barcode Input
+// หารายการ SO ที่ match กับ item_ref_code และ unit_code เรียงตามจำนวน qty น้อยสุดก่อน
+function findMatchingSOItems(itemRefCode, unitCode) {
+    return soDetails.value
+        .filter((so) => so.item_ref_code === itemRefCode && so.unit_code === unitCode)
+        .map((so) => ({
+            ...so,
+            max_qty: parseFloat(so.qty) || 0,
+            scanned_qty: getScannedQtyByItemCode(so.item_code),
+            remaining_qty: (parseFloat(so.qty) || 0) - getScannedQtyByItemCode(so.item_code)
+        }))
+        .filter((so) => so.remaining_qty > 0) // เอาเฉพาะที่ยังรับได้
+        .sort((a, b) => a.max_qty - b.max_qty); // เรียงตาม qty น้อยสุดก่อน
+}
+
+// ประมวลผล Barcode Input - Logic ใหม่
 async function processBarcodeInput() {
     if (!barcodeInput.value || !barcodeInput.value.trim()) {
         return;
@@ -199,75 +224,75 @@ async function processBarcodeInput() {
 
         if (result.success && result.data && result.data.length > 0) {
             const item = result.data[0];
+            const itemRefCode = item.item_ref_code;
+            const unitCode = item.unit_code;
 
-            // ตรวจสอบว่าสินค้าอยู่ใน SO หรือไม่
-            const soItem = soDetails.value.find((so) => so.item_code === item.item_code && so.unit_code === item.unit_code);
+            // หารายการ SO ที่ match กับ item_ref_code และ unit_code
+            const matchingSOItems = findMatchingSOItems(itemRefCode, unitCode);
 
-            if (!soItem) {
-                toast.add({
-                    severity: 'error',
-                    summary: 'Error',
-                    detail: `สินค้า ${item.item_code} ไม่อยู่ใน PO นี้`,
-                    life: 3000
-                });
+            if (matchingSOItems.length === 0) {
+                // ตรวจสอบว่ามีใน SO หรือไม่ (อาจจะรับครบแล้ว)
+                const anySOMatch = soDetails.value.find((so) => so.item_ref_code === itemRefCode && so.unit_code === unitCode);
+
+                if (anySOMatch) {
+                    toast.add({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: `สินค้า ${itemRefCode} (${unitCode}) รับครบแล้ว`,
+                        life: 3000
+                    });
+                } else {
+                    toast.add({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: `สินค้า ${itemRefCode} (${unitCode}) ไม่อยู่ใน PO นี้`,
+                        life: 3000
+                    });
+                }
                 barcodeInput.value = '';
                 searchLoading.value = false;
                 return;
             }
 
-            // ตรวจสอบจำนวนที่จะเพิ่ม
-            const maxQty = getMaxQty(item.item_code);
-            const currentQty = getScannedQty(item.item_code);
-            const remainingQty = maxQty - currentQty;
-
-            if (remainingQty <= 0) {
-                toast.add({
-                    severity: 'error',
-                    summary: 'Error',
-                    detail: `สินค้า ${item.item_code} รับครบแล้ว (${maxQty} ${item.unit_code})`,
-                    life: 3000
-                });
-                barcodeInput.value = '';
-                searchLoading.value = false;
-                return;
-            }
+            // คำนวณจำนวนรวมที่ยังรับได้
+            const totalRemainingQty = matchingSOItems.reduce((sum, so) => sum + so.remaining_qty, 0);
 
             // ตรวจสอบจำนวนที่สแกนไม่ให้เกินที่เหลือ
-            const actualQty = Math.min(qty, remainingQty);
+            const actualQty = Math.min(qty, totalRemainingQty);
 
             if (actualQty < qty) {
                 toast.add({
                     severity: 'warn',
                     summary: 'Warning',
-                    detail: `สามารถรับได้เพียง ${actualQty} ชิ้น (เหลือ ${remainingQty} ชิ้น)`,
+                    detail: `สามารถรับได้เพียง ${actualQty} ชิ้น (เหลือ ${totalRemainingQty} ชิ้น)`,
                     life: 3000
                 });
             }
 
-            // เพิ่มสินค้าตามจำนวนที่สแกน (หรือจำนวนที่เหลือ)
-            let addedCount = 0;
-            for (let i = 0; i < actualQty; i++) {
-                const success = addItemToScanned(
-                    {
-                        ...item,
-                        barcode: barcode,
-                        qty: 1
-                    },
-                    false
-                );
-                if (success) {
-                    addedCount++;
-                } else {
-                    break; // หยุดถ้าไม่สามารถเพิ่มได้
+            // กระจายจำนวนไปยังรายการต่างๆ ตามลำดับ (น้อยสุดก่อน)
+            let remainingToAdd = actualQty;
+            let addedDetails = [];
+
+            for (const soItem of matchingSOItems) {
+                if (remainingToAdd <= 0) break;
+
+                const qtyToAdd = Math.min(remainingToAdd, soItem.remaining_qty);
+
+                if (qtyToAdd > 0) {
+                    addItemToScannedBySOItem(soItem, qtyToAdd, false);
+                    addedDetails.push({ item_code: soItem.item_code, qty: qtyToAdd });
+                    remainingToAdd -= qtyToAdd;
                 }
             }
 
-            if (addedCount > 0) {
+            if (addedDetails.length > 0) {
+                const totalAdded = addedDetails.reduce((sum, d) => sum + d.qty, 0);
+                const detailText = addedDetails.map((d) => `${d.item_code}: ${d.qty}`).join(', ');
                 toast.add({
                     severity: 'success',
                     summary: 'Success',
-                    detail: `เพิ่มสินค้า ${item.item_code} จำนวน ${addedCount} ชิ้น`,
-                    life: 2000
+                    detail: `เพิ่มสินค้า ${itemRefCode} จำนวน ${totalAdded} ชิ้น (${detailText})`,
+                    life: 3000
                 });
             }
         } else {
@@ -288,9 +313,48 @@ async function processBarcodeInput() {
     } finally {
         searchLoading.value = false;
         barcodeInput.value = '';
-        // Re-focus input field เพื่อให้สามารถ scan ต่อได้ทันที
         refocusBarcodeInput();
     }
+}
+
+// เพิ่มสินค้าตาม SO Item ที่ระบุ
+function addItemToScannedBySOItem(soItem, qtyToAdd, showToast = true) {
+    const existingIndex = scannedItems.value.findIndex((i) => i.item_code === soItem.item_code);
+
+    if (existingIndex !== -1) {
+        // มีอยู่แล้ว - เพิ่มจำนวน
+        scannedItems.value[existingIndex].qty += qtyToAdd;
+
+        if (showToast) {
+            toast.add({
+                severity: 'info',
+                summary: 'Updated',
+                detail: `อัพเดทจำนวนสินค้า ${soItem.item_code} เป็น ${scannedItems.value[existingIndex].qty}`,
+                life: 2000
+            });
+        }
+    } else {
+        // เพิ่มรายการใหม่
+        scannedItems.value.push({
+            item_code: soItem.item_code,
+            item_ref_code: soItem.item_ref_code,
+            item_name: soItem.item_name || '',
+            unit_code: soItem.unit_code,
+            qty: qtyToAdd,
+            max_qty: parseFloat(soItem.qty) || 0
+        });
+
+        if (showToast) {
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: `เพิ่มสินค้า ${soItem.item_code}`,
+                life: 2000
+            });
+        }
+    }
+
+    return true;
 }
 
 // ค้นหาสินค้า (AutoComplete)
@@ -308,7 +372,6 @@ async function handleSearch(event) {
         const result = await ReceiveDocService.getItemSearch(searchTerm);
 
         if (result.success && result.data && result.data.length > 0) {
-            // ใช้ข้อมูลจาก API ตรงๆ ไม่ต้อง map item_year
             searchResults.value = result.data;
         } else {
             searchResults.value = [];
@@ -330,7 +393,6 @@ async function handleSearch(event) {
 function onItemSelect(event) {
     if (event.value) {
         addItemToScanned(event.value);
-        // Clear search ด้วย timeout เล็กน้อยเพื่อให้ AutoComplete ทำงานเสร็จก่อน
         setTimeout(() => {
             selectedItem.value = null;
             searchResults.value = [];
@@ -338,109 +400,42 @@ function onItemSelect(event) {
     }
 }
 
-// เพิ่มสินค้าที่เลือกเข้า scannedItems
+// เพิ่มสินค้าที่เลือกเข้า scannedItems (สำหรับ search mode)
 function addItemToScanned(item, showToast = true) {
-    // ตรวจสอบว่าสินค้านี้อยู่ใน SO หรือไม่
-    const soItem = soDetails.value.find((so) => so.item_code === item.item_code && so.unit_code === item.unit_code);
+    const itemRefCode = item.item_ref_code;
+    const unitCode = item.unit_code;
 
-    if (!soItem) {
-        if (showToast) {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: `สินค้า ${item.item_code} ไม่อยู่ใน PO นี้`,
-                life: 3000
-            });
-        }
-        return false;
-    }
+    // หารายการ SO ที่ match
+    const matchingSOItems = findMatchingSOItems(itemRefCode, unitCode);
 
-    const maxQty = getMaxQty(item.item_code);
-    const currentQty = getScannedQty(item.item_code);
+    if (matchingSOItems.length === 0) {
+        const anySOMatch = soDetails.value.find((so) => so.item_ref_code === itemRefCode && so.unit_code === unitCode);
 
-    // ตรวจสอบไม่ให้รับเกิน
-    if (currentQty >= maxQty) {
-        if (showToast) {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: `สินค้า ${item.item_code} รับครบแล้ว (${maxQty} ${item.unit_code})`,
-                life: 3000
-            });
-        }
-        return false;
-    }
-
-    // ใช้ barcode ที่ส่งมา (ตัดส่วนหลัง - ออกแล้ว)
-    let barcode = item.barcode || item.item_code;
-
-    // ตัดส่วนหลัง - ออก (ถ้ายังมี)
-    if (barcode.includes('-')) {
-        barcode = barcode.split('-')[0];
-    }
-
-    console.log('=== addItemToScanned ===');
-    console.log('Input item:', item);
-    console.log('Parsed barcode:', barcode);
-    console.log('Current scannedItems:', JSON.stringify(scannedItems.value.map((i) => ({ item_code: i.item_code, barcode: i.barcode }))));
-
-    // ตรวจสอบว่ามีสินค้านี้อยู่แล้วหรือไม่ (เช็คแค่ item_code กับ barcode)
-    const existingItemIndex = scannedItems.value.findIndex((i) => i.item_code === item.item_code && i.barcode === barcode);
-
-    console.log('Existing item index:', existingItemIndex);
-
-    if (existingItemIndex !== -1) {
-        // มีสินค้าอยู่แล้ว - เพิ่มจำนวนในรายการเดิม
-        const existingItem = scannedItems.value[existingItemIndex];
-        const newQty = existingItem.qty + (item.qty || 1);
-
-        // คำนวณจำนวนรวมของสินค้าชนิดเดียวกัน (รวมทั้งหมด)
-        const otherQty = scannedItems.value.filter((i, idx) => idx !== existingItemIndex && i.item_code === item.item_code).reduce((sum, i) => sum + i.qty, 0);
-
-        if (newQty + otherQty > maxQty) {
+        if (anySOMatch) {
             if (showToast) {
                 toast.add({
                     severity: 'error',
                     summary: 'Error',
-                    detail: `ไม่สามารถรับเกิน ${maxQty} ${item.unit_code}`,
+                    detail: `สินค้า ${itemRefCode} (${unitCode}) รับครบแล้ว`,
                     life: 3000
                 });
             }
-            return false;
+        } else {
+            if (showToast) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: `สินค้า ${itemRefCode} (${unitCode}) ไม่อยู่ใน PO นี้`,
+                    life: 3000
+                });
+            }
         }
-
-        scannedItems.value[existingItemIndex].qty = newQty;
-
-        if (showToast) {
-            toast.add({
-                severity: 'info',
-                summary: 'Updated',
-                detail: `อัพเดทจำนวนสินค้า ${item.item_code} เป็น ${newQty}`,
-                life: 2000
-            });
-        }
-    } else {
-        // ไม่มีสินค้านี้ - เพิ่มรายการใหม่
-        scannedItems.value.push({
-            item_code: item.item_code,
-            item_name: item.item_name || '',
-            unit_code: item.unit_code,
-            barcode: barcode,
-            qty: item.qty || 1,
-            max_qty: maxQty
-        });
-
-        if (showToast) {
-            toast.add({
-                severity: 'success',
-                summary: 'Success',
-                detail: `เพิ่มสินค้า ${item.item_code}`,
-                life: 2000
-            });
-        }
+        return false;
     }
 
-    return true;
+    // เพิ่มไปที่รายการที่มี qty น้อยสุด
+    const targetSO = matchingSOItems[0];
+    return addItemToScannedBySOItem(targetSO, item.qty || 1, showToast);
 }
 
 // ลบสินค้าจาก scannedItems
@@ -451,18 +446,18 @@ function removeScannedItem(index) {
 // อัพเดทจำนวน
 function updateQty(index, newQty) {
     const item = scannedItems.value[index];
-    const otherQty = scannedItems.value.filter((i, idx) => idx !== index && i.item_code === item.item_code).reduce((sum, i) => sum + i.qty, 0);
+    const maxQty = item.max_qty;
 
-    const maxQty = getMaxQty(item.item_code);
-
-    if (newQty + otherQty > maxQty) {
+    if (newQty > maxQty) {
         toast.add({
             severity: 'error',
             summary: 'Error',
             detail: `ไม่สามารถรับเกิน ${maxQty} ${item.unit_code}`,
             life: 3000
         });
-        scannedItems.value[index].qty = maxQty - otherQty;
+        scannedItems.value[index].qty = maxQty;
+    } else if (newQty < 0) {
+        scannedItems.value[index].qty = 0;
     } else {
         scannedItems.value[index].qty = newQty;
     }
@@ -473,24 +468,27 @@ function showSummary() {
     showSummaryDialog.value = true;
 }
 
-// สรุปข้อมูลสินค้าที่จะบันทึก (รายละเอียดทุก barcode)
+// สรุปข้อมูลสินค้าที่จะบันทึก (จัดกลุ่มตาม item_ref_code + unit_code)
 const summaryItems = computed(() => {
     const grouped = {};
 
     scannedItems.value.forEach((item) => {
-        if (!grouped[item.item_code]) {
-            grouped[item.item_code] = {
-                item_code: item.item_code,
+        const key = `${item.item_ref_code}_${item.unit_code}`;
+        if (!grouped[key]) {
+            // คำนวณ max_qty รวมสำหรับ item_ref_code + unit_code เดียวกัน
+            const totalMaxQty = getTotalMaxQtyByRefCode(item.item_ref_code, item.unit_code);
+            grouped[key] = {
+                item_ref_code: item.item_ref_code,
                 item_name: item.item_name,
                 unit_code: item.unit_code,
                 total_qty: 0,
-                max_qty: item.max_qty,
-                details: [] // เก็บรายละเอียดแต่ละ barcode
+                max_qty: totalMaxQty,
+                details: []
             };
         }
-        grouped[item.item_code].total_qty += item.qty;
-        grouped[item.item_code].details.push({
-            barcode: item.barcode,
+        grouped[key].total_qty += item.qty;
+        grouped[key].details.push({
+            item_code: item.item_code,
             qty: item.qty
         });
     });
@@ -500,7 +498,7 @@ const summaryItems = computed(() => {
 
 // คำนวณยอดรวมของ SO ทั้งหมด
 const totalSOQty = computed(() => {
-    return soDetails.value.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+    return soDetails.value.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
 });
 
 // คำนวณยอดที่สแกนแล้วทั้งหมด
@@ -521,7 +519,6 @@ async function saveReceiveDoc() {
     try {
         // เตรียมข้อมูลสำหรับ API
         const details = scannedItems.value.map((item) => ({
-            barcode: item.barcode,
             item_code: item.item_code,
             unit_code: item.unit_code,
             qty: item.qty.toString()
@@ -726,8 +723,8 @@ onUnmounted(() => {
                                 {{ item.item_name || '-' }}
                             </div>
                             <div class="flex items-center gap-2">
-                                <i class="pi pi-qrcode text-sm md:text-base text-muted-color"></i>
-                                <span class="font-mono font-bold text-sm md:text-base text-primary bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">{{ item.barcode }}</span>
+                                <i class="pi pi-tag text-sm md:text-base text-muted-color"></i>
+                                <span class="font-mono font-bold text-sm md:text-base text-primary bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">{{ item.item_ref_code }}</span>
                             </div>
                         </div>
                         <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="removeScannedItem(index)" class="ml-2 -mt-1" />
@@ -926,7 +923,7 @@ onUnmounted(() => {
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-3 mb-1">
                                         <div class="font-semibold text-lg text-primary">
-                                            {{ item.item_code }}
+                                            {{ item.item_ref_code }}
                                         </div>
                                         <Tag :value="item.unit_code" severity="secondary" class="text-sm" />
                                     </div>
@@ -948,8 +945,8 @@ onUnmounted(() => {
                             <div class="border-t border-surface-200 dark:border-surface-700 pt-3">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <div v-for="(detail, dIdx) in item.details" :key="dIdx" class="flex items-center gap-2 bg-surface-0 dark:bg-surface-900 rounded px-3 py-2 border border-surface-200 dark:border-surface-600">
-                                        <i class="pi pi-qrcode text-sm text-primary"></i>
-                                        <span class="font-mono font-semibold text-sm text-primary">{{ detail.barcode }}</span>
+                                        <i class="pi pi-box text-sm text-primary"></i>
+                                        <span class="font-mono font-semibold text-sm text-primary">{{ detail.item_code }}</span>
                                         <Tag :value="`x${detail.qty}`" severity="info" class="text-sm" />
                                     </div>
                                 </div>
@@ -962,7 +959,7 @@ onUnmounted(() => {
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
                                     <div class="font-semibold text-base text-primary">
-                                        {{ item.item_code }}
+                                        {{ item.item_ref_code }}
                                     </div>
                                 </div>
                                 <Tag :value="item.unit_code" severity="secondary" class="text-sm" />
@@ -981,8 +978,8 @@ onUnmounted(() => {
                             <div class="space-y-2">
                                 <div v-for="(detail, dIdx) in item.details" :key="dIdx" class="bg-surface-0 dark:bg-surface-900 rounded p-2.5 flex items-center justify-between">
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
-                                        <i class="pi pi-qrcode text-sm text-primary"></i>
-                                        <span class="font-mono font-semibold text-sm text-primary truncate">{{ detail.barcode }}</span>
+                                        <i class="pi pi-box text-sm text-primary"></i>
+                                        <span class="font-mono font-semibold text-sm text-primary truncate">{{ detail.item_code }}</span>
                                     </div>
                                     <Tag :value="`x${detail.qty}`" severity="info" class="text-sm ml-2" />
                                 </div>

@@ -181,7 +181,7 @@ const combinedDetails = computed(() => {
                             </div>
 
                             <!-- Barcode Details (แสดงด้านล่าง) -->
-                            <div v-if="item.details.length > 0" class="mt-3 pt-2 border-t border-surface-200 dark:border-surface-700">
+                            <!-- <div v-if="item.details.length > 0" class="mt-3 pt-2 border-t border-surface-200 dark:border-surface-700">
                                 <div class="flex flex-wrap gap-2">
                                     <div v-for="(detail, dIdx) in item.details" :key="dIdx" class="bg-surface-0 dark:bg-surface-900 rounded px-3 py-1.5 flex items-center gap-2 border border-surface-200 dark:border-surface-700">
                                         <span class="font-mono text-sm font-semibold text-primary">{{ detail.barcode }}</span>
@@ -189,7 +189,7 @@ const combinedDetails = computed(() => {
                                         <Tag :value="`x${detail.qty}`" severity="info" class="text-sm" />
                                     </div>
                                 </div>
-                            </div>
+                            </div> -->
                         </div>
 
                         <!-- Mobile Layout -->

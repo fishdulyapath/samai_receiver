@@ -30,7 +30,7 @@ const totalPages = ref(0);
 // Dialog states
 const createDialog = ref(false);
 const currentStep = ref('1');
-const selectedSO = ref(null);
+const selectedSOList = ref([]);
 const remark = ref('');
 const soList = ref([]);
 const soLoading = ref(false);
@@ -107,10 +107,14 @@ function onPageChange(event) {
     loadReceiveDocs();
 }
 
+function isSOSelected(docNo) {
+    return selectedSOList.value.some((so) => so.doc_no === docNo);
+}
+
 // Open create dialog -> show SO list
 function openCreateDialog() {
     currentStep.value = '1';
-    selectedSO.value = null;
+    selectedSOList.value = [];
     remark.value = '';
     soSearchQuery.value = '';
     soCurrentPage.value = 1;
@@ -158,13 +162,47 @@ function onSOPageChange(event) {
     loadSOList();
 }
 
-function selectSO(event) {
-    selectedSO.value = { ...event.data };
+function toggleSOSelection(soData) {
+    const index = selectedSOList.value.findIndex((so) => so.doc_no === soData.doc_no);
+    if (index >= 0) {
+        selectedSOList.value.splice(index, 1);
+    } else {
+        // ตรวจสอบว่า cust_code ต้องเป็นตัวเดียวกัน
+        if (selectedSOList.value.length > 0 && selectedSOList.value[0].cust_code !== soData.cust_code) {
+            toast.add({
+                severity: 'warn',
+                summary: 'ไม่สามารถเลือกได้',
+                detail: `สามารถเลือก PO ของเจ้าหนี้เดียวกันเท่านั้น (${selectedSOList.value[0].cust_name})`,
+                life: 3000
+            });
+            return;
+        }
+        selectedSOList.value.push({ ...soData });
+    }
+}
+
+function removeSelectedSO(docNo) {
+    selectedSOList.value = selectedSOList.value.filter((so) => so.doc_no !== docNo);
+    if (selectedSOList.value.length === 0) {
+        currentStep.value = '1';
+    }
+}
+
+function goToStep2() {
+    if (selectedSOList.value.length === 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Warning',
+            detail: 'กรุณาเลือก PO อย่างน้อย 1 รายการ',
+            life: 3000
+        });
+        return;
+    }
     currentStep.value = '2';
 }
 
 async function createReceiveDoc() {
-    if (!selectedSO.value) {
+    if (selectedSOList.value.length === 0) {
         toast.add({
             severity: 'warn',
             summary: 'Warning',
@@ -176,11 +214,14 @@ async function createReceiveDoc() {
 
     loading.value = true;
     try {
+        const firstSO = selectedSOList.value[0];
+        const docRefList = selectedSOList.value.map((so) => so.doc_no).join(',');
+
         const result = await ReceiveDocService.createReceiveDoc({
-            doc_ref: selectedSO.value.doc_no,
-            cust_code: selectedSO.value.cust_code,
-            sale_code: selectedSO.value.sale_code || '',
-            branch_code: selectedSO.value.branch_code,
+            doc_ref: docRefList,
+            cust_code: firstSO.cust_code,
+            sale_code: firstSO.sale_code || '',
+            branch_code: firstSO.branch_code,
             remark: remark.value
         });
 
@@ -191,9 +232,8 @@ async function createReceiveDoc() {
                 detail: 'สร้างใบรับสินค้าสำเร็จ',
                 life: 3000
             });
-
             createDialog.value = false;
-            selectedSO.value = null;
+            selectedSOList.value = [];
             remark.value = '';
             await loadReceiveDocs();
         } else {
@@ -219,13 +259,12 @@ async function createReceiveDoc() {
 function hideCreateDialog() {
     createDialog.value = false;
     currentStep.value = '1';
-    selectedSO.value = null;
+    selectedSOList.value = [];
     remark.value = '';
 }
 
 function backToSOList() {
     currentStep.value = '1';
-    selectedSO.value = null;
 }
 
 function formatDate(dateStr) {
@@ -527,6 +566,20 @@ function closeDetailDialog() {
                     </div>
                 </div>
 
+                <!-- Selected SO Summary Bar -->
+                <div v-if="selectedSOList.length > 0" class="mb-4 bg-primary-50 dark:bg-primary-400/10 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-sm">
+                            <i class="pi pi-check-circle mr-1 text-primary"></i>
+                            เลือกแล้ว {{ selectedSOList.length }} รายการ — เจ้าหนี้: {{ selectedSOList[0].cust_name }}
+                        </span>
+                        <Button label="ล้างทั้งหมด" icon="pi pi-times" severity="danger" text size="small" @click="selectedSOList = []" />
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <Tag v-for="so in selectedSOList" :key="so.doc_no" severity="info" class="cursor-pointer" @click="removeSelectedSO(so.doc_no)"> {{ so.doc_no }} <i class="pi pi-times ml-1 text-xs"></i> </Tag>
+                    </div>
+                </div>
+
                 <!-- Mobile Card View -->
                 <div class="md:hidden space-y-3">
                     <div v-if="soLoading" class="flex items-center justify-center py-8">
@@ -541,8 +594,9 @@ function closeDetailDialog() {
                         <div
                             v-for="so in soList"
                             :key="so.doc_no"
-                            @click.stop="selectSO({ data: so })"
+                            @click.stop="toggleSOSelection(so)"
                             class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 cursor-pointer hover:border-primary transition-colors"
+                            :class="{ 'border-primary': isSOSelected(so.doc_no) }"
                         >
                             <div class="flex items-start justify-between mb-2">
                                 <div class="flex-1">
@@ -551,7 +605,7 @@ function closeDetailDialog() {
                                         {{ formatDate(so.doc_date) }}
                                     </div>
                                 </div>
-                                <i class="pi pi-chevron-right text-muted-color"></i>
+                                <i class="pi pi-check text-primary" v-if="isSOSelected(so.doc_no)"></i>
                             </div>
                             <div class="text-sm space-y-1">
                                 <div><span class="text-muted-color">เจ้าหนี้:</span> {{ so.cust_name }}</div>
@@ -617,43 +671,51 @@ function closeDetailDialog() {
 
                         <Column header="จัดการ" :exportable="false" style="min-width: 10rem">
                             <template #body="slotProps">
-                                <Button icon="pi pi-check" label="เลือก" size="small" severity="success" @click.stop="selectSO({ data: slotProps.data })" />
+                                <Button
+                                    :icon="isSOSelected(slotProps.data.doc_no) ? 'pi pi-check-circle' : 'pi pi-circle'"
+                                    :label="isSOSelected(slotProps.data.doc_no) ? 'เลือกแล้ว' : 'เลือก'"
+                                    size="small"
+                                    :severity="isSOSelected(slotProps.data.doc_no) ? 'info' : 'success'"
+                                    :outlined="!isSOSelected(slotProps.data.doc_no)"
+                                    @click.stop="toggleSOSelection(slotProps.data)"
+                                />
                             </template>
                         </Column>
                     </DataTable>
                 </div>
             </div>
 
-            <div v-else-if="currentStep === '2' && selectedSO" class="step-content">
+            <div v-else-if="currentStep === '2'" class="step-content">
                 <!-- Step 2: แสดง SO ที่เลือกและกรอก remark -->
                 <div class="flex flex-col gap-4">
-                    <div class="bg-primary-50 dark:bg-primary-400/10 rounded-lg p-4">
+                    <div v-for="so in selectedSOList" :key="so.doc_no" class="bg-primary-50 dark:bg-primary-400/10 rounded-lg p-4 mb-3">
                         <div class="flex items-center justify-between mb-3">
                             <h6 class="font-semibold mb-0">PO ที่เลือก</h6>
-                            <Tag :value="selectedSO.doc_no" severity="info" />
+                            <Tag :value="so.doc_no" severity="info" />
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label class="text-xs text-muted-color block mb-1">วันที่</label>
-                                <p class="font-semibold text-sm">{{ formatDate(selectedSO.doc_date) }}</p>
+                                <p class="font-semibold text-sm">{{ formatDate(so.doc_date) }}</p>
                             </div>
                             <div>
                                 <label class="text-xs text-muted-color block mb-1">เจ้าหนี้</label>
-                                <p class="font-semibold text-sm">{{ selectedSO.cust_name }}</p>
+                                <p class="font-semibold text-sm">{{ so.cust_name }}</p>
                             </div>
                             <div>
                                 <label class="text-xs text-muted-color block mb-1">พนักงานขาย</label>
-                                <p class="font-semibold text-sm">{{ selectedSO.sale_name || '-' }}</p>
+                                <p class="font-semibold text-sm">{{ so.sale_name || '-' }}</p>
                             </div>
                             <div>
                                 <label class="text-xs text-muted-color block mb-1">สาขา</label>
-                                <Tag :value="selectedSO.branch_code" severity="secondary" size="small" />
+                                <Tag :value="so.branch_code" severity="secondary" size="small" />
                             </div>
-                            <div v-if="selectedSO.remark" class="md:col-span-2">
+                            <div v-if="so.remark" class="md:col-span-2">
                                 <label class="text-xs text-muted-color block mb-1">หมายเหตุ PO</label>
-                                <p class="text-sm">{{ selectedSO.remark }}</p>
+                                <p class="text-sm">{{ so.remark }}</p>
                             </div>
                         </div>
+                        <Button label="ลบ" icon="pi pi-times" severity="danger" outlined size="small" class="mt-3" @click="removeSelectedSO(so.doc_no)" />
                     </div>
 
                     <div class="flex flex-col gap-2">
@@ -664,11 +726,14 @@ function closeDetailDialog() {
             </div>
 
             <template #footer>
-                <div class="flex gap-2 w-full" :class="currentStep === '1' ? 'justify-end' : 'justify-between'">
-                    <Button v-if="currentStep === '1'" label="ยกเลิก" icon="pi pi-times" severity="secondary" outlined @click="hideCreateDialog" class="flex-1 md:flex-initial" />
+                <div class="flex gap-2 w-full" :class="currentStep === '1' ? 'justify-between' : 'justify-between'">
+                    <template v-if="currentStep === '1'">
+                        <Button label="ยกเลิก" icon="pi pi-times" severity="secondary" outlined @click="hideCreateDialog" class="flex-1 md:flex-initial" />
+                        <Button :label="`ถัดไป (${selectedSOList.length})`" icon="pi pi-arrow-right" iconPos="right" severity="success" @click="goToStep2" :disabled="selectedSOList.length === 0" class="flex-1 md:flex-initial" />
+                    </template>
                     <template v-else-if="currentStep === '2'">
                         <Button label="ย้อนกลับ" icon="pi pi-arrow-left" severity="secondary" outlined @click="backToSOList" class="flex-1 md:flex-initial" />
-                        <Button label="สร้างใบรับ" icon="pi pi-check" severity="success" @click="createReceiveDoc" :loading="loading" class="flex-1 md:flex-initial" />
+                        <Button :label="`สร้างใบรับ (${selectedSOList.length} รายการ)`" icon="pi pi-check" severity="success" @click="createReceiveDoc" :loading="loading" class="flex-1 md:flex-initial" />
                     </template>
                 </div>
             </template>

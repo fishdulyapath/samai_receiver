@@ -236,13 +236,13 @@ const formatTime = (timeStr) => {
     display: flex;
     justify-content: space-between;
     font-size: 10px;
-    color: #555;
+    color: #000;
     padding-left: 4px;
 }
 
 .detail-left {
-    color: #2d7a2d;
-    font-weight: 500;
+    color: #000;
+    font-weight: bold;
 }
 
 .detail-right {
@@ -352,7 +352,7 @@ const formatTime = (timeStr) => {
     }
 
     .detail-left {
-        color: #2d7a2d !important;
+        color: #000 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }

@@ -20,16 +20,12 @@ class ImageService {
                 image_file: imageBase64
             };
 
-            const response = await axios.post(
-                `${API_URL}saveDocImage?provider=${provider}&dbname=${dbname}`,
-                body,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 60000 // 60 seconds timeout
-                }
-            );
+            const response = await axios.post(`${API_URL}saveDocImage?provider=${provider}&dbname=${dbname}`, body, {
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                timeout: 60000 // 60 seconds timeout
+            });
 
             return response.data;
         } catch (error) {
@@ -79,10 +75,11 @@ class ImageService {
             const provider = AuthService.getProviderName();
             const dbname = AuthService.getDatabaseName();
 
-            const response = await axios.get(`${API_URL}deleteDocImage/${guidCode}`, {
+            const response = await axios.get(`${API_URL}deleteDocImage`, {
                 params: {
                     provider,
-                    dbname
+                    dbname,
+                    guid_code: guidCode
                 }
             });
 

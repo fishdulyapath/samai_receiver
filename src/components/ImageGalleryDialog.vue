@@ -1,8 +1,8 @@
 <script setup>
-import { ref, watch } from 'vue';
-import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
 import ImageService from '@/service/ImageService';
+import { useConfirm } from 'primevue/useconfirm';
+import { useToast } from 'primevue/usetoast';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
     visible: {
@@ -284,7 +284,7 @@ function closeDialog() {
                             <!-- รูปภาพ -->
                             <img
                                 :src="getImageUrl(image.guid_code)"
-                                :alt="`รูปที่ ${index + 1}`"
+                                :alt="`${image.guid_code} รูปที่ ${index + 1}`"
                                 class="w-full h-full object-cover"
                                 loading="lazy"
                                 @load="handleImageLoad(image.guid_code)"
@@ -297,7 +297,7 @@ function closeDialog() {
                         <div class="p-3 flex items-center justify-between border-t border-gray-200 dark:border-surface-700">
                             <div class="flex items-center gap-2">
                                 <i class="pi pi-image text-primary text-sm"></i>
-                                <span class="font-medium text-sm">รูปที่ {{ index + 1 }}</span>
+                                <span class="font-medium text-sm">{{ image.image_id }}</span>
                             </div>
                             <Button v-if="!readOnly" icon="pi pi-trash" severity="danger" text rounded size="small" @click.stop="confirmDelete(image)" v-tooltip.top="'ลบรูป'" />
                         </div>
